@@ -1,0 +1,95 @@
+const express = require('express');
+const fs = require('fs');
+const app = express();
+
+app.use(express.urlencoded({ extended: true }));
+
+const FILE_NAME = 'accounts.json';
+
+// Функция чтения аккаунтов
+function getAccounts() {
+    if (!fs.existsSync(FILE_NAME)) return [];
+    return JSON.parse(fs.readFileSync(FILE_NAME, 'utf-8'));
+}
+
+// ГЛАВНАЯ СТРАНИЦА: РЕГИСТРАЦИЯ И ВХОД СРАЗУ
+app.get('/', (req, res) => {
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(`
+        <div style="text-align: center; margin-top: 50px; font-family: Arial; background: #f4f4f9; padding: 20px;">
+            <h1 style="color: #333;">Платформа Cubix</h1>
+            
+            <!-- БЛОК РЕГИСТРАЦИИ -->
+            <div style="display: inline-block; text-align: left; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin: 10px; width: 250px;">
+                <h3>Регистрация</h3>
+                <form action="/register" method="POST">
+                    <input type="text" name="username" placeholder="Придумай ник" style="width: 100%; padding: 8px; margin-bottom: 10px;" required><br>
+                    <input type="password" name="password" placeholder="Пароль" style="width: 100%; padding: 8px; margin-bottom: 10px;" required><br>
+                    <button type="submit" style="width: 100%; padding: 8px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer;">Создать аккаунт</button>
+                </form>
+            </div>
+
+            <!-- БЛОК ВХОДА -->
+            <div style="display: inline-block; text-align: left; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin: 10px; width: 250px;">
+                <h3>Вход в аккаунт</h3>
+                <form action="/login" method="POST">
+                    <input type="text" name="username" placeholder="Твой ник" style="width: 100%; padding: 8px; margin-bottom: 10px;" required><br>
+                    <input type="password" name="password" placeholder="Пароль" style="width: 100%; padding: 8px; margin-bottom: 10px;" required><br>
+                    <button type="submit" style="width: 100%; padding: 8px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">Войти</button>
+                </form>
+            </div>
+        </div>
+    `);
+});
+
+// ОБРАБОТКА РЕГИСТРАЦИИ
+app.post('/register', (req, res) => {
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    const userNick = req.body.username.trim();
+    const userPass = req.body.password;
+    const accounts = getAccounts();
+
+    const alreadyExists = accounts.some(acc => acc.nick.toLowerCase() === userNick.toLowerCase());
+
+    if (alreadyExists) {
+        return res.send(`<h1>Ошибка! Ник "${userNick}" уже занят!</h1><a href="/">Назад</a>`);
+    }
+
+    // Каждому даём 500 монет при старте
+    accounts.push({ nick: userNick, pass: userPass, coins: 500 });
+    fs.writeFileSync(FILE_NAME, JSON.stringify(accounts, null, 2));
+
+    res.send(`<h1>Ура! Аккаунт для ${userNick} создан! Получено 500 монет!</h1><a href="/">Назад на главную</a>`);
+});
+
+// ОБРАБОТКА ВХОДА
+app.post('/login', (req, res) => {
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    const userNick = req.body.username.trim();
+    const userPass = req.body.password;
+    const accounts = getAccounts();
+
+    const foundUser = accounts.find(acc => acc.nick.toLowerCase() === userNick.toLowerCase());
+
+    if (!foundUser) {
+        return res.send(`<h1>Пользователь "${userNick}" не найден!</h1><a href="/">Назад</a>`);
+    }
+
+    if (foundUser.pass === userPass) {
+        res.send(`
+            <div style="font-family: Arial; text-align: center; margin-top: 50px;">
+                <h1 style="color: #007bff;">Привет, ${foundUser.nick}!</h1>
+                <h2>Твой баланс: <span style="color: #ff9900;">${foundUser.coins} 💰 Cubix-монет</span></h2>
+                <br>
+                <a href="/">Выйти из аккаунта</a>
+            </div>
+        `);
+    } else {
+        res.send(`<h1>Неверный пароль!</h1><a href="/">Назад</a>`);
+    }
+});
+
+app.listen(3000, () => {
+    console.log("=== Cubix работает! ===");
+    console.log("Открой в браузере: http://localhost:3000");
+});

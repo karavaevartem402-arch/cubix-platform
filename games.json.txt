@@ -1,0 +1,126 @@
+const express = require('express');
+const fs = require('fs');
+const app = express();
+
+app.use(express.urlencoded({ extended: true }));
+
+const ACCOUNTS_FILE = 'accounts.json';
+const GAMES_FILE = 'games.json';
+
+// Чтение аккаунтов
+function getAccounts() {
+    if (!fs.existsSync(ACCOUNTS_FILE)) return [];
+    return JSON.parse(fs.readFileSync(ACCOUNTS_FILE, 'utf-8'));
+}
+
+// Чтение игр из созданного тобой файла games.json
+function getGames() {
+    if (!fs.existsSync(GAMES_FILE)) return [];
+    return JSON.parse(fs.readFileSync(GAMES_FILE, 'utf-8'));
+}
+
+// Меню навигации вверху сайта
+function getNavigation() {
+    return `
+        <div style="background:#1a1a22; padding:15px; text-align:center; font-family:Arial;">
+            <a href="/" style="color:white; margin-right:20px; text-decoration:none; font-weight:bold;">🏠 Главная</a>
+            <a href="/games" style="color:white; text-decoration:none; font-weight:bold;">🎮 Игры (Каталог)</a>
+        </div>
+    `;
+}
+
+// ГЛАВНАЯ СТРАНИЦА
+app.get('/', (req, res) => {
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(getNavigation() + `
+        <div style="text-align: center; margin-top: 50px; font-family: Arial;">
+            <h1>Платформа Cubix</h1>
+            <div style="display: inline-block; text-align: left; background: #f4f4f9; padding: 20px; border-radius: 8px; margin-right: 20px; width: 220px;">
+                <h3>Регистрация</h3>
+                <form action="/register" method="POST">
+                    <input name="username" placeholder="Ник" style="width:100%; padding:5px; margin-bottom:10px;" required><br>
+                    <input name="password" type="password" placeholder="Пароль" style="width:100%; padding:5px; margin-bottom:10px;" required><br>
+                    <button style="width:100%; padding:5px;">Создать</button>
+                </form>
+            </div>
+            <div style="display: inline-block; text-align: left; background: #f4f4f9; padding: 20px; border-radius: 8px; width: 220px;">
+                <h3>Вход</h3>
+                <form action="/login" method="POST">
+                    <input name="username" placeholder="Ник" style="width:100%; padding:5px; margin-bottom:10px;" required><br>
+                    <input name="password" type="password" placeholder="Пароль" style="width:100%; padding:5px; margin-bottom:10px;" required><br>
+                    <button style="width:100%; padding:5px;">Войти</button>
+                </form>
+            </div>
+        </div>
+    `);
+});
+
+// СТРАНИЦА С ИГРАМИ (БЕРЕТ ДАННЫЕ ИЗ GAMES.JSON)
+app.get('/games', (req, res) => {
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    const gamesList = getGames();
+    let cards = "";
+
+    gamesList.forEach(g => {
+        cards += `
+            <div style="background:white; border:1px solid #ddd; border-radius:8px; padding:15px; width:220px; box-shadow:0 4px 6px rgba(0,0,0,0.05); text-align:center; font-family:Arial;">
+                <div style="font-size:50px; margin-bottom:10px;">${g.icon || '🎮'}</div>
+                <h3 style="margin:5px 0;">${g.title}</h3>
+                <p style="font-size:12px; color:#666; height:40px;">${g.desc}</p>
+                <p style="font-size:13px; color:#28a745; font-weight:bold;">● Онлайн: ${g.online || '0'}</p>
+                <button style="background:#ff5722; color:white; border:none; padding:8px 20px; border-radius:4px; cursor:pointer; font-weight:bold; width:100%;">▶ PLAY</button>
+            </div>
+        `;
+    });
+
+    res.send(getNavigation() + `
+        <div style="font-family:Arial; padding:20px;">
+            <h2 style="text-align:center;">Каталог игр Cubix</h2>
+            <div style="display:flex; justify-content:center; gap:20px; flex-wrap:wrap; margin-top:30px;">
+                ${cards || '<h3>Игр пока нет. Добавьте их в games.json!</h3>'}
+            </div>
+        </div>
+    `);
+});
+
+// РЕГИСТРАЦИЯ
+app.post('/register', (req, res) => {
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    const name = req.body.username.trim();
+    const pass = req.body.password;
+    const list = getAccounts();
+
+    if (list.some(u => u.nick.toLowerCase() === name.toLowerCase())) {
+        return res.send('Ник занят! <a href="/">Назад</a>');
+    }
+
+    list.push({ nick: name, pass: pass });
+    fs.writeFileSync(ACCOUNTS_FILE, JSON.stringify(list, null, 2));
+    res.send('<h1>Аккаунт успешно создан!</h1><br><a href="/games">Перейти к играм 🎮</a>');
+});
+
+// ВХОД
+app.post('/login', (req, res) => {
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    const name = req.body.username.trim();
+    const pass = req.body.password;
+    const u = getAccounts().find(user => user.nick.toLowerCase() === name.toLowerCase());
+
+    if (!u) return res.send('Пользователь не найден! <a href="/">Назад</a>');
+    if (u.pass === pass) {
+        res.send(`
+            <div style="font-family:Arial; text-align:center; margin-top:50px;">
+                <h1>Привет, ${u.nick}!</h1>
+                <p>Вы успешно вошли.</p><br>
+                <a href="/games" style="background:#007bff; color:white; padding:10px 20px; text-decoration:none; border-radius:4px; font-weight:bold;">🎮 Перейти в Игры</a>
+            </div>
+        `);
+    } else {
+        res.send('Неверный пароль! <a href="/">Назад</a>');
+    }
+});
+
+app.listen(3000, () => {
+    console.log('=== Cubix обновлен и запущен! ===');
+});
+
